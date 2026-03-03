@@ -3,22 +3,27 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
 
-// Load env
+// Load environment variables
 dotenv.config();
 
-// Connect DB
+// Connect to MongoDB
 connectDB();
 
 const app = express();
 
-// Middlewares
-app.use(cors());
+// 🔥 Strong CORS Configuration
+app.use(
+  cors({
+    origin: "http://localhost:5173", // frontend URL
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
+
+// Middleware to parse JSON
 app.use(express.json());
 
-// Routes
-const authRoutes = require("./routes/authRoutes");
-const { protect } = require("./middleware/authMiddleware");
-const authorizeRoles = require("./middleware/roleMiddleware");
+// ================= ROUTES =================
 
 // Root route
 app.get("/", (req, res) => {
@@ -26,13 +31,17 @@ app.get("/", (req, res) => {
 });
 
 // Auth routes
+const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authRoutes);
 
 // Wallet routes
 const walletRoutes = require("./routes/walletRoutes");
 app.use("/api/wallet", walletRoutes);
 
-// Admin test route
+// Protected admin test route
+const { protect } = require("./middleware/authMiddleware");
+const authorizeRoles = require("./middleware/roleMiddleware");
+
 app.get(
   "/api/admin-test",
   protect,
@@ -41,6 +50,8 @@ app.get(
     res.json({ message: "Welcome Admin!" });
   }
 );
+
+// ================= START SERVER =================
 
 const PORT = process.env.PORT || 5000;
 
