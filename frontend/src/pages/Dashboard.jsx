@@ -1,83 +1,35 @@
-import { useMemo } from "react";
 import { useTrading } from "../context/TradingContext";
 import { calculateDisciplineScore } from "../utils/calculateDiscipline";
 
 const Dashboard = () => {
-  const trading = useTrading() || {};
+  const { balance, trades = [], achievements = [] } = useTrading();
 
-  const balance = trading.balance ?? 0;
-  const trades = Array.isArray(trading.trades)
-    ? trading.trades
-    : [];
-
-  const formatINR = (amount) =>
+  const formatINR = (val) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(val || 0);
 
-  const totalPL = useMemo(() => {
-    if (!trades.length) return 0;
-    return trades.reduce((acc, trade) => acc + (trade.pl || 0), 0);
-  }, [trades]);
+  const totalPL = trades.reduce((acc, t) => acc + (t.pl || 0), 0);
 
-  const winRate = useMemo(() => {
-    if (!trades.length) return 0;
-    const wins = trades.filter((t) => t.pl > 0).length;
-    return ((wins / trades.length) * 100).toFixed(1);
-  }, [trades]);
+  const wins = trades.filter((t) => t.pl > 0).length;
 
-  const avgRisk = useMemo(() => {
-    if (!trades.length) return 0;
-    const totalRisk = trades.reduce(
-      (acc, trade) => acc + (trade.riskPercent || 0),
-      0
-    );
-    return (totalRisk / trades.length).toFixed(2);
-  }, [trades]);
+  const winRate = trades.length
+    ? ((wins / trades.length) * 100).toFixed(1)
+    : 0;
 
-  const xp = parseInt(localStorage.getItem("learnXP")) || 0;
-
-  const getMaxRisk = () => {
-    if (xp >= 1000) return 5;
-    if (xp >= 700) return 4;
-    if (xp >= 400) return 4;
-    if (xp >= 200) return 3;
-    return 2;
-  };
-
-  const disciplineScore = calculateDisciplineScore(
-    trades,
-    getMaxRisk()
-  );
-
-  const getDisciplineColor = () => {
-    if (disciplineScore >= 85) return "text-green-400";
-    if (disciplineScore >= 70) return "text-blue-400";
-    if (disciplineScore >= 50) return "text-yellow-400";
-    return "text-red-400";
-  };
-
-  const getDisciplineLabel = () => {
-    if (disciplineScore >= 85) return "Elite Discipline";
-    if (disciplineScore >= 70) return "Structured Trader";
-    if (disciplineScore >= 50) return "Needs Improvement";
-    return "High Risk Behavior";
-  };
+  const disciplineScore = calculateDisciplineScore(trades);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="p-8 text-white bg-gray-900 min-h-screen">
       <h1 className="text-3xl font-bold mb-8">
-        Indian Market Dashboard 🇮🇳
+        Dashboard 🇮🇳
       </h1>
 
-      {/* Capital Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card
-          title="Trading Capital"
-          value={formatINR(balance)}
-        />
+      {/* 📊 Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <Card title="Balance" value={formatINR(balance)} />
 
         <Card
           title="Total P/L"
@@ -85,53 +37,44 @@ const Dashboard = () => {
           highlight
           positive={totalPL >= 0}
         />
-      </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         <Card title="Win Rate" value={`${winRate}%`} />
-        <Card title="Average Risk %" value={`${avgRisk}%`} />
-        <Card title="Total Trades" value={trades.length} />
+
+        <Card title="Discipline" value={`${disciplineScore}`} />
       </div>
 
-      {/* Discipline */}
-      <div className="mt-10 bg-gray-800 p-6 rounded-xl shadow-lg">
+      {/* 🏆 Achievements */}
+      <div className="bg-gray-800 p-6 rounded-xl">
         <h2 className="text-xl font-semibold mb-4">
-          Discipline Analytics
+          Achievements
         </h2>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-gray-400">Discipline Score</p>
-            <h3
-              className={`text-4xl font-bold ${getDisciplineColor()}`}
-            >
-              {disciplineScore} / 100
-            </h3>
-            <p className="text-sm text-gray-400 mt-2">
-              {getDisciplineLabel()}
-            </p>
-          </div>
-
-          <div className="w-1/2">
-            <div className="bg-gray-700 h-4 rounded-full overflow-hidden">
-              <div
-                className="h-4 bg-green-500 transition-all duration-500"
-                style={{ width: `${disciplineScore}%` }}
-              />
-            </div>
-          </div>
-        </div>
+        {achievements.length === 0 ? (
+          <p className="text-gray-400">
+            Complete trades to unlock achievements.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {achievements.map((a, i) => (
+              <li
+                key={i}
+                className="bg-gray-700 p-3 rounded"
+              >
+                {a}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
 };
 
 const Card = ({ title, value, highlight, positive }) => (
-  <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
+  <div className="bg-gray-800 p-6 rounded-xl">
     <p className="text-gray-400">{title}</p>
     <h2
-      className={`text-3xl font-bold mt-2 ${
+      className={`text-2xl font-bold mt-2 ${
         highlight
           ? positive
             ? "text-green-400"

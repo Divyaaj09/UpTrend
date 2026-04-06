@@ -1,158 +1,173 @@
-import React, { useEffect, useState } from "react";
-
-const formatINR = (value) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-  }).format(value);
-};
+import { useTrading } from "../context/TradingContext";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 
 const Portfolio = () => {
-  const [trades, setTrades] = useState([]);
+  const { trades, balance } = useTrading();
 
-  useEffect(() => {
-    const storedTrades = localStorage.getItem("tradeHistory");
-    if (storedTrades) {
-      setTrades(JSON.parse(storedTrades));
-    }
-  }, []);
+  const formatINR = (val) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val || 0);
 
-  const totalPL = trades.reduce((acc, t) => acc + t.pl, 0);
-  const openTrades = trades.filter((t) => !t.exit);
-  const closedTrades = trades.filter((t) => t.exit);
+  const totalPL = trades.reduce((acc, t) => acc + (t.pl || 0), 0);
 
-  const accountSize = 100000 + totalPL;
+  const wins = trades.filter((t) => t.pl > 0).length;
+  const winRate = trades.length
+    ? ((wins / trades.length) * 100).toFixed(1)
+    : 0;
 
-  const totalRiskExposure = openTrades.reduce(
-    (acc, t) => acc + (t.riskPercent || 0),
-    0
-  );
+  // 🧠 Build Equity Curve
+  let runningBalance = 100000;
+  const equityData = trades.map((t, index) => {
+    runningBalance += t.pl;
 
-  const riskStatus =
-    totalRiskExposure > 5
-      ? "Overexposed"
-      : totalRiskExposure > 3
-      ? "High"
-      : "Controlled";
+    return {
+      name: `T${index + 1}`,
+      balance: runningBalance,
+    };
+  });
 
   return (
-    <div className="space-y-8">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-bold text-white">Portfolio</h1>
-        <p className="text-gray-400 mt-1">
-          Review your positions. Analyze your discipline.
-        </p>
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      <h1 className="text-3xl font-bold mb-8">
+        Portfolio Overview 🇮🇳
+      </h1>
+
+      {/* Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <Card title="Balance" value={formatINR(balance)} />
+
+        <Card
+          title="Total P/L"
+          value={formatINR(totalPL)}
+          highlight
+          positive={totalPL >= 0}
+        />
+
+        <Card title="Win Rate" value={`${winRate}%`} />
+
+        <Card title="Trades" value={trades.length} />
       </div>
 
-      {/* RISK OVERVIEW */}
-      <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl">
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Risk Overview
+      {/* 📊 Equity Curve Chart */}
+      <div className="bg-gray-800 p-6 rounded-xl mb-10">
+        <h2 className="text-xl font-semibold mb-4">
+          Equity Curve
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
-          <Metric label="Trading Capital" value={formatINR(accountSize)} />
-          <Metric label="Open Trades" value={openTrades.length} />
-          <Metric
-            label="Total Risk %"
-            value={`${totalRiskExposure.toFixed(2)}%`}
-          />
-          <Metric
-            label="Risk Status"
-            value={riskStatus}
-            highlight={
-              riskStatus === "Overexposed"
-                ? "text-red-400"
-                : riskStatus === "High"
-                ? "text-yellow-400"
-                : "text-green-400"
-            }
-          />
-        </div>
-      </div>
-
-      {/* OPEN POSITIONS */}
-      <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl">
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Open Positions
-        </h2>
-
-        {openTrades.length === 0 ? (
-          <p className="text-gray-500 text-sm">No open trades currently.</p>
+        {equityData.length === 0 ? (
+          <p className="text-gray-400">
+            No data yet. Start trading to see performance.
+          </p>
         ) : (
-          <Table trades={openTrades} />
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={equityData}>
+              <CartesianGrid stroke="#444" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="balance"
+                stroke="#22c55e"
+                strokeWidth={2}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         )}
       </div>
 
-      {/* TRADE HISTORY */}
-      <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl">
-        <h2 className="text-lg font-semibold text-white mb-4">
+      {/* Trade History */}
+      <div className="bg-gray-800 p-6 rounded-xl">
+        <h2 className="text-xl font-semibold mb-4">
           Trade History
         </h2>
 
-        {closedTrades.length === 0 ? (
-          <p className="text-gray-500 text-sm">No closed trades yet.</p>
+        {trades.length === 0 ? (
+          <p className="text-gray-400">
+            No trades yet.
+          </p>
         ) : (
-          <Table trades={closedTrades} history />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="py-2">Asset</th>
+                  <th>Type</th>
+                  <th>Entry</th>
+                  <th>Exit</th>
+                  <th>Qty</th>
+                  <th>P/L</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {trades.map((t, i) => (
+                  <tr
+                    key={i}
+                    className="border-b border-gray-700 hover:bg-gray-700"
+                  >
+                    <td>{t.asset.replace(".NS", "")}</td>
+
+                    <td
+                      className={
+                        t.type === "LONG"
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {t.type}
+                    </td>
+
+                    <td>{formatINR(t.entryPrice)}</td>
+                    <td>{formatINR(t.exitPrice)}</td>
+                    <td>{t.quantity}</td>
+
+                    <td
+                      className={
+                        t.pl >= 0
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {formatINR(t.pl)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-const Table = ({ trades, history }) => (
-  <div className="overflow-x-auto">
-    <table className="w-full text-sm text-left text-gray-400">
-      <thead className="text-xs uppercase bg-gray-800 text-gray-300">
-        <tr>
-          <th className="px-4 py-3">Asset</th>
-          <th className="px-4 py-3">Entry</th>
-          {history && <th className="px-4 py-3">Exit</th>}
-          <th className="px-4 py-3">P/L</th>
-          <th className="px-4 py-3">Risk %</th>
-          <th className="px-4 py-3">Journal</th>
-        </tr>
-      </thead>
-      <tbody>
-        {trades.map((trade, index) => (
-          <tr
-            key={index}
-            className="border-b border-gray-800 hover:bg-gray-800 transition"
-          >
-            <td className="px-4 py-3 text-white">{trade.asset}</td>
-            <td className="px-4 py-3">{formatINR(trade.entry)}</td>
-            {history && (
-              <td className="px-4 py-3">
-                {trade.exit ? formatINR(trade.exit) : "-"}
-              </td>
-            )}
-            <td
-              className={`px-4 py-3 font-medium ${
-                trade.pl > 0
-                  ? "text-green-400"
-                  : trade.pl < 0
-                  ? "text-red-400"
-                  : "text-gray-400"
-              }`}
-            >
-              {formatINR(trade.pl)}
-            </td>
-            <td className="px-4 py-3">{trade.riskPercent || 0}%</td>
-            <td className="px-4 py-3 text-gray-300">
-              {trade.note || "—"}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
-const Metric = ({ label, value, highlight }) => (
-  <div>
-    <p className="text-gray-400">{label}</p>
-    <p className={`font-medium ${highlight || "text-white"}`}>{value}</p>
+// Card Component
+const Card = ({ title, value, highlight, positive }) => (
+  <div className="bg-gray-800 p-6 rounded-xl">
+    <p className="text-gray-400">{title}</p>
+    <h2
+      className={`text-2xl font-bold mt-2 ${
+        highlight
+          ? positive
+            ? "text-green-400"
+            : "text-red-400"
+          : ""
+      }`}
+    >
+      {value}
+    </h2>
   </div>
 );
 
