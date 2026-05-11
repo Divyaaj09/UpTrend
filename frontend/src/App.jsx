@@ -1,6 +1,13 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { TradingProvider } from "./context/TradingContext";
-import { AuthProvider } from "./context/AuthContext";
+// src/App.jsx
+
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+} from "react-router-dom";
+
+import { useAuth } from "./context/AuthContext";
+
 import Layout from "./layout/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -9,60 +16,136 @@ import Trade from "./pages/Trade";
 import Portfolio from "./pages/Portfolio";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Learn from "./pages/Learn";
 
-const App = () => {
+import AcademyHome from "./academy/AcademyHome";
+import TopicReader from "./academy/TopicReader";
+
+// NEW IMPORTS
+import MarketReplay from "./pages/MarketReplay";
+import DailyPractice from "./pages/DailyPractice";
+
+function AppRoutes() {
+
+  const { user, loading } = useAuth();
+
+  if (loading) {
+
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-slate-400 text-lg">
+        Loading...
+      </div>
+    );
+  }
+
   return (
-    <AuthProvider>
-      <TradingProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Layout />}>
 
-              {/* Public Routes */}
-              <Route index element={<Dashboard />} />
-              <Route path="login" element={<Login />} />
-              <Route path="register" element={<Register />} />
-              <Route path="learn" element={<Learn />} />
+    <Routes>
 
-              {/* Demo Trading - Requires Level 2 */}
-              <Route
-                path="trade"
-                element={
-                  <ProtectedRoute requiredLevel={2}>
-                    <Trade />
-                  </ProtectedRoute>
-                }
-              />
+      {/* AUTH ROUTES */}
 
-              {/* Portfolio - Also Level 2 (optional, can change) */}
-              <Route
-                path="portfolio"
-                element={
-                  <ProtectedRoute requiredLevel={2}>
-                    <Portfolio />
-                  </ProtectedRoute>
-                }
-              />
+      {!user ? (
+        <>
 
-              {/* Example Live Trading Route (if you create it later) */}
-              {/*
-              <Route
-                path="live"
-                element={
-                  <ProtectedRoute requiredLevel={3}>
-                    <LiveTrading />
-                  </ProtectedRoute>
-                }
-              />
-              */}
+          <Route
+            path="*"
+            element={<Login />}
+          />
 
-            </Route>
-          </Routes>
-        </Router>
-      </TradingProvider>
-    </AuthProvider>
+          <Route
+            path="/register"
+            element={<Register />}
+          />
+
+        </>
+      ) : (
+
+        /* MAIN APP */
+
+        <Route
+          path="/"
+          element={<Layout />}
+        >
+
+          {/* DASHBOARD */}
+
+          <Route
+            index
+            element={<Dashboard />}
+          />
+
+          {/* ACADEMY */}
+
+          <Route
+            path="academy"
+            element={<AcademyHome />}
+          />
+
+          <Route
+            path="learn"
+            element={<TopicReader />}
+          />
+
+          {/* MARKET REPLAY */}
+
+          <Route
+            path="market-replay"
+            element={
+              <ProtectedRoute requiredLevel={1}>
+                <MarketReplay />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* DAILY PRACTICE */}
+
+          <Route
+            path="daily-practice"
+            element={
+              <ProtectedRoute requiredLevel={1}>
+                <DailyPractice />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* TRADE */}
+
+          <Route
+            path="trade"
+            element={
+              <ProtectedRoute requiredLevel={2}>
+                <Trade />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* PORTFOLIO */}
+
+          <Route
+            path="portfolio"
+            element={
+              <ProtectedRoute requiredLevel={2}>
+                <Portfolio />
+              </ProtectedRoute>
+            }
+          />
+
+        </Route>
+      )}
+
+    </Routes>
   );
-};
+}
 
-export default App;
+export default function App() {
+
+  return (
+
+    <div className="min-h-screen bg-[#0f172a] text-white antialiased">
+
+      <Router>
+        <AppRoutes />
+      </Router>
+
+    </div>
+  );
+}

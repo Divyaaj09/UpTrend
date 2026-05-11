@@ -1,90 +1,122 @@
-import { createContext, useContext, useState } from "react";
-import { calculateDisciplineScore } from "../utils/calculateDiscipline";
-import { getAchievements } from "../utils/achievements";
+import { createContext, useContext, useEffect, useState } from "react";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { db, auth } from "../firebase";
 
 const TradingContext = createContext();
 
 export const TradingProvider = ({ children }) => {
-  const [balance, setBalance] = useState(100000); // ₹1L
+  const [user, setUser] = useState(null);
+
+  const [balance, setBalance] = useState(10000);
   const [trades, setTrades] = useState([]);
   const [openPosition, setOpenPosition] = useState(null);
-  const [achievements, setAchievements] = useState([]);
+  const [xp, setXp] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // 🟢 OPEN TRADE
-  const openTrade = ({ asset, type, price, quantity }) => {
-    if (openPosition) return false;
+  // ✅ Wait for Firebase auth to be ready BEFORE Firestore
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setLoading(false);
+        return;
+      }
 
-    const cost = price * quantity;
+      setUser(firebaseUser);
 
-    if (cost > balance) {
-      alert("Insufficient balance");
-      return false;
+      try {
+        const ref = doc(db, "users", firebaseUser.uid);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          const data = snap.data();
+          setBalance(data.balance ?? 10000);
+          setTrades(data.trades ?? []);
+          setOpenPosition(data.openPosition ?? null);
+          setXp(data.xp ?? 0);
+        } else {
+          await setDoc(ref, {
+            balance: 10000,
+            trades: [],
+            openPosition: null,
+            xp: 0,
+          });
+        }
+      } catch (err) {
+        console.log("Firestore safe fail:", err.message);
+      }
+
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Safe save
+  const saveData = async (newBalance, newTrades, newPosition, newXp) => {
+    if (!user) return;
+
+    try {
+      const ref = doc(db, "users", user.uid);
+      await updateDoc(ref, {
+        balance: newBalance,
+        trades: newTrades,
+        openPosition: newPosition,
+        xp: newXp,
+      });
+    } catch (err) {
+      console.log("Save failed:", err.message);
+    }
+  };
+
+  // ✅ OPEN TRADE
+  const openTrade = ({ asset, type, price, quantity, journal }) => {
+    if (openPosition) {
+      alert("Close existing trade first");
+      return;
     }
 
-    setBalance((prev) => prev - cost);
-
-    setOpenPosition({
+    const position = {
       asset,
       type,
       entryPrice: price,
       quantity,
-      entryTime: Date.now(),
-    });
+      journal,
+      openedAt: Date.now(),
+    };
 
-    return true;
+    setOpenPosition(position);
+    saveData(balance, trades, position, xp);
   };
 
-  // 🔴 CLOSE TRADE
-  const closeTrade = (currentPrice) => {
+  // ✅ CLOSE TRADE
+  const closeTrade = (exitPrice) => {
     if (!openPosition) return;
 
-    let pl = 0;
+    const { entryPrice, quantity, type } = openPosition;
 
-    if (openPosition.type === "LONG") {
-      pl =
-        (currentPrice - openPosition.entryPrice) *
-        openPosition.quantity;
-    } else {
-      pl =
-        (openPosition.entryPrice - currentPrice) *
-        openPosition.quantity;
-    }
+    const pl =
+      type === "LONG"
+        ? (exitPrice - entryPrice) * quantity
+        : (entryPrice - exitPrice) * quantity;
 
-    const finalAmount =
-      openPosition.entryPrice * openPosition.quantity + pl;
+    const closedTrade = {
+      ...openPosition,
+      exitPrice,
+      pl,
+      closedAt: Date.now(),
+    };
 
-    const updatedTrades = [
-      ...trades,
-      {
-        ...openPosition,
-        exitPrice: currentPrice,
-        pl,
-        exitTime: Date.now(),
-      },
-    ];
+    const newBalance = balance + pl;
+    const updatedTrades = [...trades, closedTrade];
+    const newXp = xp + 20;
 
+    setBalance(newBalance);
     setTrades(updatedTrades);
-    setBalance((prev) => prev + finalAmount);
     setOpenPosition(null);
+    setXp(newXp);
 
-    // 🧠 Discipline
-    const disciplineScore = calculateDisciplineScore(updatedTrades);
-
-    // 🏆 Achievements
-    const newAchievements = getAchievements(
-      updatedTrades,
-      disciplineScore
-    );
-
-    setAchievements(newAchievements);
-  };
-
-  // 🔄 RESET
-  const resetAccount = () => {
-    setBalance(100000);
-    setTrades([]);
-    setOpenPosition(null);
-    setAchievements([]);
+    saveData(newBalance, updatedTrades, null, newXp);
   };
 
   return (
@@ -93,10 +125,11 @@ export const TradingProvider = ({ children }) => {
         balance,
         trades,
         openPosition,
-        achievements,
         openTrade,
         closeTrade,
-        resetAccount,
+        xp,
+        setXp,
+        loading,
       }}
     >
       {children}
@@ -104,4 +137,10 @@ export const TradingProvider = ({ children }) => {
   );
 };
 
-export const useTrading = () => useContext(TradingContext);
+export const useTrading = () => {
+  const context = useContext(TradingContext);
+  if (!context) {
+    throw new Error("useTrading must be used inside TradingProvider");
+  }
+  return context;
+};

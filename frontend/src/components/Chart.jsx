@@ -3,11 +3,14 @@ import {
   createChart,
   CandlestickSeries,
   LineSeries,
+  createSeriesMarkers,
 } from "lightweight-charts";
 
-const Chart = ({ data, emaData, rsiData }) => {
+const Chart = ({ data, emaData, rsiData, markers }) => {
   const containerRef = useRef(null);
-  const chartRef = useRef(null);
+
+  const mainChartRef = useRef(null);
+  const rsiChartRef = useRef(null);
 
   const candleSeriesRef = useRef(null);
   const emaSeriesRef = useRef(null);
@@ -16,10 +19,12 @@ const Chart = ({ data, emaData, rsiData }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // ✅ Create chart once
-    chartRef.current = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: 400,
+    const container = containerRef.current;
+
+    // 🔝 MAIN CHART
+    mainChartRef.current = createChart(container, {
+      width: container.clientWidth,
+      height: 300,
       layout: {
         background: { color: "#111827" },
         textColor: "#DDD",
@@ -30,44 +35,85 @@ const Chart = ({ data, emaData, rsiData }) => {
       },
     });
 
-    // 🕯️ Candles
-    candleSeriesRef.current = chartRef.current.addSeries(CandlestickSeries);
+    candleSeriesRef.current =
+      mainChartRef.current.addSeries(CandlestickSeries);
 
-    // 📈 EMA
-    emaSeriesRef.current = chartRef.current.addSeries(LineSeries, {
-      color: "#facc15",
-      lineWidth: 2,
+    emaSeriesRef.current =
+      mainChartRef.current.addSeries(LineSeries, {
+        color: "#facc15",
+        lineWidth: 2,
+      });
+
+    // 🔽 RSI PANEL
+    const rsiContainer = document.createElement("div");
+    rsiContainer.style.marginTop = "10px";
+    container.appendChild(rsiContainer);
+
+    rsiChartRef.current = createChart(rsiContainer, {
+      width: container.clientWidth,
+      height: 150,
+      layout: {
+        background: { color: "#111827" },
+        textColor: "#DDD",
+      },
     });
 
-    // 📉 RSI
-    rsiSeriesRef.current = chartRef.current.addSeries(LineSeries, {
-      color: "#38bdf8",
-      lineWidth: 2,
+    rsiSeriesRef.current =
+      rsiChartRef.current.addSeries(LineSeries, {
+        color: "#38bdf8",
+        lineWidth: 2,
+      });
+
+    // RSI Levels
+    rsiSeriesRef.current.createPriceLine({
+      price: 70,
+      color: "#ef4444",
+      lineWidth: 1,
+      lineStyle: 2,
+      title: "Overbought",
     });
 
-    return () => chartRef.current.remove();
+    rsiSeriesRef.current.createPriceLine({
+      price: 30,
+      color: "#22c55e",
+      lineWidth: 1,
+      lineStyle: 2,
+      title: "Oversold",
+    });
+
+    return () => {
+      mainChartRef.current.remove();
+      rsiChartRef.current.remove();
+    };
   }, []);
 
-  // Update candles
+  // 🕯️ Candles
   useEffect(() => {
     if (data.length && candleSeriesRef.current) {
       candleSeriesRef.current.setData(data);
     }
   }, [data]);
 
-  // Update EMA
+  // 📈 EMA
   useEffect(() => {
     if (emaData.length && emaSeriesRef.current) {
       emaSeriesRef.current.setData(emaData);
     }
   }, [emaData]);
 
-  // Update RSI
+  // 📉 RSI
   useEffect(() => {
     if (rsiData.length && rsiSeriesRef.current) {
       rsiSeriesRef.current.setData(rsiData);
     }
   }, [rsiData]);
+
+  // 🔥 MARKERS FIXED
+  useEffect(() => {
+    if (markers && candleSeriesRef.current) {
+      createSeriesMarkers(candleSeriesRef.current, markers);
+    }
+  }, [markers]);
 
   return <div ref={containerRef} className="w-full" />;
 };

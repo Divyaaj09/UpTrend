@@ -1,102 +1,202 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+} from "firebase/auth";
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
+
+import {
+  auth,
+  googleProvider,
+  db,
+} from "../firebase";
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+export const AuthProvider = ({
+  children,
+}) => {
 
-  // Load user on refresh
+  const [user, setUser] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  // ==========================================
+  // CREATE USER IN FIRESTORE
+  // ==========================================
+
+  const createUserIfNotExists =
+    async (firebaseUser) => {
+
+      const userRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      const userSnap =
+        await getDoc(userRef);
+
+      // NEW USER
+      if (!userSnap.exists()) {
+
+        await setDoc(userRef, {
+          uid: firebaseUser.uid,
+
+          name:
+            firebaseUser.displayName ||
+            "Trader",
+
+          email: firebaseUser.email,
+
+          balance: 100000,
+
+          xp: 0,
+
+          holdings: {},
+
+          createdAt:
+            new Date(),
+
+        });
+
+        // Empty trades collection automatically
+      }
+    };
+
+  // ==========================================
+  // AUTH STATE
+  // ==========================================
+
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    const savedToken = localStorage.getItem("token");
 
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-    }
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (currentUser) => {
+
+          if (currentUser) {
+
+            // IMPORTANT
+            await createUserIfNotExists(
+              currentUser
+            );
+          }
+
+          setUser(currentUser);
+
+          setLoading(false);
+        }
+      );
+
+    return () => unsubscribe();
+
   }, []);
 
-  const login = async (username, password) => {
-    try {
-      const response = await fetch(
-        "http://localhost:5000/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username, password }),
-        }
+  // ==========================================
+  // LOGIN
+  // ==========================================
+
+  const login = async (
+    email,
+    password
+  ) => {
+
+    const result =
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
       );
 
-      // If server not reachable
-      if (!response) {
-        throw new Error("Server not reachable");
-      }
+    await createUserIfNotExists(
+      result.user
+    );
 
-      const data = await response.json();
+    return result;
+  };
 
-      if (!response.ok) {
-        throw new Error(data.message || "Login failed");
-      }
+  // ==========================================
+  // REGISTER
+  // ==========================================
 
-      // Save token + user
-      localStorage.setItem("token", data.token);
-      localStorage.setItem(
-        "user",
-        JSON.stringify({ username: data.username })
+  const register = async (
+    email,
+    password
+  ) => {
+
+    const result =
+      await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
       );
 
-      setUser({ username: data.username });
+    await createUserIfNotExists(
+      result.user
+    );
 
-    } catch (error) {
-      console.error("Login Error:", error);
-      throw new Error(error.message || "Something went wrong");
-    }
+    return result;
   };
 
-  const register = async (username, password) => {
-    try {
-      const response = await fetch(
-        "http://localhost:5000/api/auth/register",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username, password }),
-        }
+  // ==========================================
+  // GOOGLE SIGN IN
+  // ==========================================
+
+  const signInWithGoogle =
+    async () => {
+
+      const result =
+        await signInWithPopup(
+          auth,
+          googleProvider
+        );
+
+      await createUserIfNotExists(
+        result.user
       );
 
-      if (!response) {
-        throw new Error("Server not reachable");
-      }
+      return result;
+    };
 
-      const data = await response.json();
+  // ==========================================
+  // LOGOUT
+  // ==========================================
 
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed");
-      }
-
-      // Auto-login after successful registration
-      await login(username, password);
-
-    } catch (error) {
-      console.error("Register Error:", error);
-      throw new Error(error.message || "Something went wrong");
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
-  };
+  const logout = () =>
+    signOut(auth);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
-      {children}
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        signInWithGoogle,
+        logout,
+      }}
+    >
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () =>
+  useContext(AuthContext);

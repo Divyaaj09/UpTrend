@@ -1,17 +1,20 @@
+// src/pages/Register.jsx
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Register = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleRegister = async () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
     try {
-      await register(username, password);
+      await register(email, password);
       navigate("/");
     } catch (err) {
       setError(err.message);
@@ -19,32 +22,45 @@ const Register = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20">
-      <h2 className="text-2xl mb-4">Register</h2>
+    <div className="min-h-screen flex items-center justify-center bg-[#0b1220] text-white">
+      <div className="w-full max-w-md bg-[#121a2b] p-8 rounded-2xl shadow-xl">
+        <h2 className="text-3xl font-bold mb-6 text-center">Create Account</h2>
 
-      {error && <p className="text-red-500 mb-3">{error}</p>}
+        {error && (
+          <div className="bg-red-500/20 text-red-400 p-2 mb-4 rounded">
+            {error}
+          </div>
+        )}
 
-      <input
-        className="w-full p-3 mb-4 bg-[#1E293B] rounded"
-        placeholder="Username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-      />
+        <form onSubmit={handleRegister} className="flex flex-col gap-4">
+          <input
+            type="email"
+            placeholder="Email"
+            className="p-3 rounded bg-[#1b2437] outline-none"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
-      <input
-        type="password"
-        className="w-full p-3 mb-4 bg-[#1E293B] rounded"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+          <input
+            type="password"
+            placeholder="Password"
+            className="p-3 rounded bg-[#1b2437] outline-none"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-      <button
-        onClick={handleRegister}
-        className="w-full bg-blue-500 p-3 rounded hover:bg-blue-600"
-      >
-        Create Account
-      </button>
+          <button className="bg-green-600 py-3 rounded-lg font-semibold hover:bg-green-700">
+            Register
+          </button>
+        </form>
+
+        <p className="text-center text-gray-400 mt-6">
+          Already have an account?{" "}
+          <Link to="/login" className="text-blue-400">
+            Login
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
