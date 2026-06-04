@@ -22,7 +22,7 @@ UpTrend is a virtual stock trading and learning platform designed to help beginn
 
 ## Team
 - Aditya Narayan Gour
-- Divyaaj
+- Divya Joshi
 
 ## Future Scope
 - Live market integration
